@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -62,7 +61,7 @@ export default function ResumeTweaker({ resumeContent, fileName }: ResumeTweaker
       }
 
       setIsImproving(true);
-      const improved = await improveResumeForJob(originalText, jobDescription);
+      const improved = await improveResumeForJob(originalText, jobDescription, fileName);
       setImprovedText(improved);
     } catch (error) {
       console.error("Error improving resume for job:", error);
