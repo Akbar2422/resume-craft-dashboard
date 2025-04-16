@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
@@ -30,10 +29,12 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 
+// Explicitly define the type to match Supabase schema
 type ApplicationStatus = "Applied" | "Interview" | "Rejected" | "Offer";
 
 interface Application {
   id: string;
+  user_id: string;
   job_title: string;
   company: string;
   applied_date: string;
@@ -50,16 +51,16 @@ export default function JobTracker() {
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | "All">("All");
   const { toast } = useToast();
   
-  // New application form state
-  const [newApplication, setNewApplication] = useState({
+  // New application form state with explicit typing
+  const [newApplication, setNewApplication] = useState<Omit<Application, 'id' | 'user_id'>>({
     job_title: "",
     company: "",
-    applied_date: new Date(),
-    status: "Applied" as ApplicationStatus,
-    notes: "",
-    resume_id: "",
-    cover_letter_id: "",
-    follow_up_date: null as Date | null
+    applied_date: format(new Date(), 'yyyy-MM-dd'),
+    status: "Applied",
+    notes: null,
+    resume_id: null,
+    cover_letter_id: null,
+    follow_up_date: null
   });
   
   // Edit application state
@@ -84,7 +85,8 @@ export default function JobTracker() {
       
       if (error) throw error;
       
-      setApplications(data || []);
+      // Explicitly cast the data to Application[]
+      setApplications(data as Application[]);
     } catch (error) {
       console.error('Error fetching applications:', error);
       toast({
@@ -132,17 +134,21 @@ export default function JobTracker() {
         return;
       }
       
+      const { data: user } = await supabase.auth.getUser();
+      if (!user?.user?.id) return;
+      
       const { data, error } = await supabase
         .from('applications')
         .insert({
+          user_id: user.user.id,
           job_title: newApplication.job_title,
           company: newApplication.company,
-          applied_date: format(newApplication.applied_date, 'yyyy-MM-dd'),
+          applied_date: newApplication.applied_date,
           status: newApplication.status,
           notes: newApplication.notes || null,
           resume_id: newApplication.resume_id || null,
           cover_letter_id: newApplication.cover_letter_id || null,
-          follow_up_date: newApplication.follow_up_date ? format(newApplication.follow_up_date, 'yyyy-MM-dd') : null
+          follow_up_date: newApplication.follow_up_date
         })
         .select();
       
@@ -157,11 +163,11 @@ export default function JobTracker() {
       setNewApplication({
         job_title: "",
         company: "",
-        applied_date: new Date(),
-        status: "Applied" as ApplicationStatus,
-        notes: "",
-        resume_id: "",
-        cover_letter_id: "",
+        applied_date: format(new Date(), 'yyyy-MM-dd'),
+        status: "Applied",
+        notes: null,
+        resume_id: null,
+        cover_letter_id: null,
         follow_up_date: null
       });
       
@@ -299,8 +305,8 @@ export default function JobTracker() {
                   <div className="space-y-2">
                     <Label>Application Date</Label>
                     <DatePicker
-                      date={newApplication.applied_date}
-                      setDate={(date) => setNewApplication({...newApplication, applied_date: date || new Date()})}
+                      date={new Date(newApplication.applied_date)}
+                      setDate={(date) => setNewApplication({...newApplication, applied_date: format(date || new Date(), 'yyyy-MM-dd')})}
                     />
                   </div>
                   <div className="space-y-2">
@@ -347,8 +353,11 @@ export default function JobTracker() {
                   <div className="space-y-2">
                     <Label>Follow-up Date (Optional)</Label>
                     <DatePicker
-                      date={newApplication.follow_up_date}
-                      setDate={(date) => setNewApplication({...newApplication, follow_up_date: date})}
+                      date={newApplication.follow_up_date ? new Date(newApplication.follow_up_date) : null}
+                      setDate={(date) => setNewApplication({
+                        ...newApplication, 
+                        follow_up_date: date ? format(date, 'yyyy-MM-dd') : null
+                      })}
                     />
                   </div>
                 </div>
@@ -357,7 +366,7 @@ export default function JobTracker() {
                   <Label htmlFor="notes">Notes</Label>
                   <Textarea 
                     id="notes" 
-                    value={newApplication.notes} 
+                    value={newApplication.notes || ''} 
                     onChange={(e) => setNewApplication({...newApplication, notes: e.target.value})}
                     placeholder="Any additional notes about this application..."
                     className="min-h-[100px]"
