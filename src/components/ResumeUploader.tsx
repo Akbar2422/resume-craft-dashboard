@@ -10,11 +10,12 @@ import { Loader2, Upload } from "lucide-react";
 import supabase from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDistanceToNow } from "date-fns";
+import { uploadResume } from "@/utils/storage";
 
 // Maximum file size (5MB)
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
-export default function ResumeUploader() {
+export default function ResumeUploader({ onUploadSuccess }: { onUploadSuccess?: (fileInfo: { name: string; url: string; content: string }) => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -48,12 +49,15 @@ export default function ResumeUploader() {
         return;
       }
       
-      // Find the most recent PDF file
-      const pdfFiles = data?.filter(file => file.name.toLowerCase().endsWith('.pdf'));
+      // Find the most recent PDF or DOCX file
+      const validFiles = data?.filter(file => {
+        const ext = file.name.split('.').pop()?.toLowerCase();
+        return ext === 'pdf' || ext === 'docx';
+      });
       
-      if (pdfFiles && pdfFiles.length > 0) {
+      if (validFiles && validFiles.length > 0) {
         // Sort by created_at in descending order
-        const latestFile = pdfFiles.sort((a, b) => 
+        const latestFile = validFiles.sort((a, b) => 
           new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime()
         )[0];
         
@@ -78,10 +82,11 @@ export default function ResumeUploader() {
     if (!selectedFile) return;
     
     // Check file type
-    if (selectedFile.type !== 'application/pdf') {
+    const fileExt = selectedFile.name.split('.').pop()?.toLowerCase();
+    if (!fileExt || !['pdf', 'docx'].includes(fileExt)) {
       toast({
         title: "Invalid file type",
-        description: "Please upload a PDF file",
+        description: "Please upload a PDF or DOCX file",
         variant: "destructive",
       });
       return;
@@ -100,53 +105,62 @@ export default function ResumeUploader() {
     setFile(selectedFile);
   };
 
-  const uploadResume = async () => {
+  const handleUpload = async () => {
     if (!file || !user) return;
     
     try {
       setUploading(true);
-      setProgress(0);
+      setProgress(10); // Start progress
       
-      // Create folder for user if it doesn't exist
-      const userId = user.id;
-      const filePath = `${userId}/${file.name}`;
+      // Use our uploadResume utility function
+      const { error, data } = await uploadResume(file, user.id);
       
-      // Upload the file
-      const { error } = await supabase.storage
-        .from('resumes')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: true
-        });
-      
-      // Since onUploadProgress isn't available, we'll simulate progress
-      setProgress(100);
+      // Simulate progress for better UX
+      setProgress(70);
       
       if (error) {
-        throw error;
+        toast({
+          title: "Upload failed",
+          description: error,
+          variant: "destructive",
+        });
+        return;
       }
       
-      // Get the public URL
-      const { data: urlData } = await supabase.storage
-        .from('resumes')
-        .getPublicUrl(filePath);
-      
-      // Update the existing resume state
-      setExistingResume({
-        name: file.name,
-        url: urlData.publicUrl,
-        uploaded_at: new Date().toISOString(),
-      });
-      
-      toast({
-        title: "Resume uploaded successfully",
-        description: "Your resume has been saved",
-      });
-      
-      // Clear the file input
-      setFile(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+      if (data) {
+        setProgress(100);
+        
+        // Update the existing resume state
+        setExistingResume({
+          name: data.name,
+          url: data.url,
+          uploaded_at: data.uploaded_at,
+        });
+        
+        toast({
+          title: "Resume uploaded successfully",
+          description: "Your resume has been saved",
+        });
+
+        // Extract text from the file (currently placeholder)
+        import("@/utils/storage").then(module => {
+          module.extractTextFromFile(file).then(content => {
+            // Call the onUploadSuccess callback if provided
+            if (onUploadSuccess) {
+              onUploadSuccess({
+                name: data.name,
+                url: data.url,
+                content
+              });
+            }
+          });
+        });
+        
+        // Clear the file input
+        setFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
       }
     } catch (error) {
       console.error('Error uploading resume:', error);
@@ -156,8 +170,10 @@ export default function ResumeUploader() {
         variant: "destructive",
       });
     } finally {
-      setUploading(false);
-      setProgress(0);
+      setTimeout(() => {
+        setUploading(false);
+        setProgress(0);
+      }, 500);
     }
   };
 
@@ -168,7 +184,7 @@ export default function ResumeUploader() {
           <div className="space-y-2">
             <h3 className="text-xl font-semibold">Resume Upload</h3>
             <p className="text-sm text-muted-foreground">
-              Upload your resume in PDF format (max 5MB)
+              Upload your resume in PDF or DOCX format (max 5MB)
             </p>
           </div>
 
@@ -189,7 +205,7 @@ export default function ResumeUploader() {
                 id="resume"
                 type="file"
                 ref={fileInputRef}
-                accept="application/pdf"
+                accept=".pdf,.docx"
                 onChange={handleFileChange}
                 className="cursor-pointer"
               />
@@ -205,7 +221,7 @@ export default function ResumeUploader() {
             )}
             
             <Button
-              onClick={uploadResume}
+              onClick={handleUpload}
               disabled={!file || uploading}
               className="w-full"
             >

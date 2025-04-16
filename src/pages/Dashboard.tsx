@@ -1,16 +1,24 @@
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import ResumeUploader from "@/components/ResumeUploader";
 import ResumeViewer from "@/components/ResumeViewer";
+import ResumeTweaker from "@/components/ResumeTweaker";
 import { LogOut, User } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+interface ResumeFile {
+  name: string;
+  url: string;
+  content: string;
+}
 
 export default function Dashboard() {
   const { user, isLoading, signOut } = useAuth();
   const navigate = useNavigate();
+  const [uploadedResume, setUploadedResume] = useState<ResumeFile | null>(null);
   
   useEffect(() => {
     if (!isLoading && !user) {
@@ -33,6 +41,10 @@ export default function Dashboard() {
   const handleSignOut = async () => {
     await signOut();
     navigate("/login");
+  };
+
+  const handleResumeUpload = (fileInfo: ResumeFile) => {
+    setUploadedResume(fileInfo);
   };
 
   return (
@@ -69,20 +81,40 @@ export default function Dashboard() {
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-gray-900">Resume Dashboard</h2>
             <p className="mt-1 text-sm text-gray-500">
-              Manage your resume in one place
+              Manage and improve your resume in one place
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-8">
-            <div className="space-y-6">
-              <h3 className="text-lg font-medium">Upload Resume</h3>
-              <ResumeUploader />
-            </div>
-            <div className="space-y-6">
-              <h3 className="text-lg font-medium">Manage Resume</h3>
+          <Tabs defaultValue="upload" className="w-full">
+            <TabsList className="mb-6">
+              <TabsTrigger value="upload">Upload Resume</TabsTrigger>
+              <TabsTrigger value="manage">Manage Resume</TabsTrigger>
+              <TabsTrigger value="improve" disabled={!uploadedResume}>Improve Resume</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="upload">
+              <ResumeUploader onUploadSuccess={handleResumeUpload} />
+            </TabsContent>
+            
+            <TabsContent value="manage">
               <ResumeViewer />
-            </div>
-          </div>
+            </TabsContent>
+            
+            <TabsContent value="improve">
+              {uploadedResume ? (
+                <ResumeTweaker 
+                  resumeContent={uploadedResume.content}
+                  fileName={uploadedResume.name}
+                />
+              ) : (
+                <div className="text-center p-12">
+                  <p className="text-muted-foreground">
+                    Please upload a resume first to use the improvement feature
+                  </p>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
       </main>
     </div>
