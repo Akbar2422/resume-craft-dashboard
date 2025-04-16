@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import ResumeUploader from "@/components/ResumeUploader";
 import ResumeViewer from "@/components/ResumeViewer";
 import ResumeTweaker from "@/components/ResumeTweaker";
+import JobTracker from "@/components/JobTracker";
 import { LogOut, User } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -89,7 +90,8 @@ export default function Dashboard() {
             <TabsList className="mb-6">
               <TabsTrigger value="upload">Upload Resume</TabsTrigger>
               <TabsTrigger value="manage">Manage Resume</TabsTrigger>
-              <TabsTrigger value="improve" disabled={!uploadedResume}>Improve Resume</TabsTrigger>
+              <TabsTrigger value="improve">Improve Resume</TabsTrigger>
+              <TabsTrigger value="tracker">Job Tracker</TabsTrigger>
             </TabsList>
             
             <TabsContent value="upload">
@@ -113,6 +115,10 @@ export default function Dashboard() {
                   </p>
                 </div>
               )}
+            </TabsContent>
+            
+            <TabsContent value="tracker">
+              <JobTracker />
             </TabsContent>
           </Tabs>
         </div>
