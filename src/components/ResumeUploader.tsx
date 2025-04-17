@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,6 +104,13 @@ export default function ResumeUploader({ onUploadSuccess }: { onUploadSuccess?: 
     setFile(selectedFile);
   };
 
+  // Fix: Trigger file input click when Upload Resume button is clicked
+  const triggerFileInput = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
   const handleUpload = async () => {
     if (!file || !user) return;
     
@@ -208,7 +214,22 @@ export default function ResumeUploader({ onUploadSuccess }: { onUploadSuccess?: 
                 accept=".pdf,.docx"
                 onChange={handleFileChange}
                 className="cursor-pointer"
+                // Hide the file input visually but keep it accessible
+                style={{ display: 'none' }}
               />
+              <Button 
+                onClick={triggerFileInput} 
+                variant="outline"
+                className="w-full"
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                Select File
+              </Button>
+              {file && (
+                <p className="text-sm mt-2">
+                  Selected file: <span className="font-medium">{file.name}</span>
+                </p>
+              )}
             </div>
             
             {uploading && (
