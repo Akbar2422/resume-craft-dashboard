@@ -87,6 +87,36 @@ export type Database = {
         }
         Relationships: []
       }
+      email_responses: {
+        Row: {
+          body_preview: string
+          created_at: string
+          id: string
+          received_at: string
+          sender: string
+          subject: string
+          user_id: string
+        }
+        Insert: {
+          body_preview: string
+          created_at?: string
+          id?: string
+          received_at?: string
+          sender: string
+          subject: string
+          user_id: string
+        }
+        Update: {
+          body_preview?: string
+          created_at?: string
+          id?: string
+          received_at?: string
+          sender?: string
+          subject?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       legend_points: {
         Row: {
           id: string
@@ -107,6 +137,47 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      reminders: {
+        Row: {
+          application_id: string | null
+          created_at: string
+          id: string
+          note: string | null
+          reminder_time: string
+          status: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          application_id?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          reminder_time: string
+          status?: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          application_id?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          reminder_time?: string
+          status?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reminders_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       resume_versions: {
         Row: {

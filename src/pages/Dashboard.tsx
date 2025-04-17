@@ -2,16 +2,24 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import ResumeUploader from "@/components/ResumeUploader";
-import ResumeViewer from "@/components/ResumeViewer";
-import ResumeTweaker from "@/components/ResumeTweaker";
-import JobTracker from "@/components/JobTracker";
-import CoverLetterGenerator from "@/components/CoverLetterGenerator";
-import { LogOut, User, Award } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent } from "@/components/ui/card";
+import { 
+  Tabs, 
+  TabsContent, 
+  TabsList, 
+  TabsTrigger 
+} from "@/components/ui/tabs";
+import { 
+  Card, 
+  CardContent, 
+  CardHeader, 
+  CardTitle 
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Calendar, Clock } from "lucide-react";
+import { DatePicker } from "@/components/ui/date-picker";
+import { Textarea } from "@/components/ui/textarea";
 
 interface ResumeFile {
   name: string;
@@ -25,7 +33,33 @@ export default function Dashboard() {
   const [uploadedResume, setUploadedResume] = useState<ResumeFile | null>(null);
   const [legendPoints, setLegendPoints] = useState<number>(0);
   const [leaderboard, setLeaderboard] = useState<Array<{user_id: string, total_points: number}>>([]);
-  
+  const [gmailToken, setGmailToken] = useState('');
+  const [emailResponses, setEmailResponses] = useState<Array<{
+    subject: string;
+    sender: string;
+    bodyPreview: string;
+    receivedAt: string;
+  }>>([
+    {
+      subject: "Interview Invitation – Frontend Developer",
+      sender: "careers@company.com",
+      bodyPreview: "We're happy to invite you for an interview scheduled on...",
+      receivedAt: "2025-04-15 09:32 AM"
+    }
+  ]);
+  const [reminders, setReminders] = useState<Array<{
+    id: string;
+    title: string;
+    reminderTime: Date;
+    status: string;
+    note?: string;
+  }>>([]);
+  const [newReminder, setNewReminder] = useState({
+    title: '',
+    reminderTime: null as Date | null,
+    note: ''
+  });
+
   useEffect(() => {
     if (!isLoading && !user) {
       navigate("/login");
@@ -76,6 +110,54 @@ export default function Dashboard() {
       console.error('Error in fetchLeaderboard:', error);
     }
   };
+
+  const fetchReminders = async () => {
+    const { data, error } = await supabase
+      .from('reminders')
+      .select('*')
+      .order('reminder_time', { ascending: true });
+
+    if (data) {
+      setReminders(data);
+    }
+  };
+
+  const saveReminder = async () => {
+    if (!newReminder.title || !newReminder.reminderTime) return;
+
+    const { data, error } = await supabase
+      .from('reminders')
+      .insert({
+        title: newReminder.title,
+        reminder_time: newReminder.reminderTime.toISOString(),
+        note: newReminder.note,
+        status: 'Pending'
+      });
+
+    if (!error) {
+      fetchReminders();
+      setNewReminder({
+        title: '',
+        reminderTime: null,
+        note: ''
+      });
+    }
+  };
+
+  const markReminderCompleted = async (id: string) => {
+    const { data, error } = await supabase
+      .from('reminders')
+      .update({ status: 'Completed' })
+      .eq('id', id);
+
+    if (!error) {
+      fetchReminders();
+    }
+  };
+
+  useEffect(() => {
+    fetchReminders();
+  }, []);
 
   if (isLoading || !user) {
     return (
@@ -139,6 +221,8 @@ export default function Dashboard() {
             <TabsTrigger value="tracker">Job Tracker</TabsTrigger>
             <TabsTrigger value="cover-letter">Cover Letter</TabsTrigger>
             <TabsTrigger value="leaderboard">Leaderboard</TabsTrigger>
+            <TabsTrigger value="hr-responses">HR Responses</TabsTrigger>
+            <TabsTrigger value="job-reminders">Job Reminders</TabsTrigger>
           </TabsList>
           
           <TabsContent value="upload">
@@ -189,6 +273,143 @@ export default function Dashboard() {
                     </div>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="hr-responses">
+            <Card>
+              <CardHeader>
+                <CardTitle>Email Integration</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
+                  🔒 Gmail Integration Not Active Yet. Paste Gmail App Password or OAuth Token below to enable.
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Paste Gmail App Password or OAuth Token
+                  </label>
+                  <Input 
+                    placeholder="Enter Gmail Token" 
+                    value={gmailToken}
+                    onChange={(e) => setGmailToken(e.target.value)}
+                  />
+                  <Button disabled>Enable Gmail Sync</Button>
+                </div>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Example HR Responses</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Subject</TableHead>
+                          <TableHead>Sender</TableHead>
+                          <TableHead>Preview</TableHead>
+                          <TableHead>Received At</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {emailResponses.map((response, index) => (
+                          <TableRow key={index}>
+                            <TableCell>{response.subject}</TableCell>
+                            <TableCell>{response.sender}</TableCell>
+                            <TableCell>{response.bodyPreview}</TableCell>
+                            <TableCell>{response.receivedAt}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="job-reminders">
+            <Card>
+              <CardHeader>
+                <CardTitle>Job Application Reminders</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Job Title
+                    </label>
+                    <Input 
+                      placeholder="Enter Job Title"
+                      value={newReminder.title}
+                      onChange={(e) => setNewReminder(prev => ({...prev, title: e.target.value}))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Reminder Date & Time
+                    </label>
+                    <DatePicker 
+                      date={newReminder.reminderTime}
+                      setDate={(date) => setNewReminder(prev => ({...prev, reminderTime: date}))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Notes
+                    </label>
+                    <Textarea 
+                      placeholder="Additional notes"
+                      value={newReminder.note}
+                      onChange={(e) => setNewReminder(prev => ({...prev, note: e.target.value}))}
+                    />
+                  </div>
+                </div>
+                <Button onClick={saveReminder}>Save Reminder</Button>
+
+                <Card className="mt-4">
+                  <CardHeader>
+                    <CardTitle>Upcoming Reminders</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Title</TableHead>
+                          <TableHead>Reminder Time</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {reminders.map((reminder) => (
+                          <TableRow key={reminder.id}>
+                            <TableCell>{reminder.title}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center">
+                                <Calendar className="mr-2 h-4 w-4" />
+                                {new Date(reminder.reminderTime).toLocaleString()}
+                              </div>
+                            </TableCell>
+                            <TableCell>{reminder.status}</TableCell>
+                            <TableCell>
+                              {reminder.status === 'Pending' && (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => markReminderCompleted(reminder.id)}
+                                >
+                                  Mark Completed
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
               </CardContent>
             </Card>
           </TabsContent>
