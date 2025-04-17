@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,11 +13,11 @@ import Leaderboard from "@/components/dashboard/Leaderboard";
 import HRResponses from "@/components/dashboard/HRResponses";
 import JobReminders from "@/components/dashboard/JobReminders";
 
-import {
-  PlaceholderResumeTweaker as ResumeTweaker,
-  PlaceholderJobTracker as JobTracker,
-  PlaceholderCoverLetterGenerator as CoverLetterGenerator,
-} from "@/components/dashboard/PlaceholderComponents";
+// The JobTracker component exists but was being shown as a placeholder
+import JobTracker from "@/components/JobTracker"; 
+
+// The CoverLetterGenerator component exists but was being shown as a placeholder
+import CoverLetterGenerator from "@/components/CoverLetterGenerator";
 
 interface ResumeFile {
   name: string;
@@ -30,6 +31,7 @@ export default function Dashboard() {
   const [uploadedResume, setUploadedResume] = useState<ResumeFile | null>(null);
   const [legendPoints, setLegendPoints] = useState<number>(0);
   const [leaderboard, setLeaderboard] = useState<Array<{user_id: string, total_points: number}>>([]);
+  const [hasResume, setHasResume] = useState<boolean>(false);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -41,6 +43,7 @@ export default function Dashboard() {
     if (user) {
       fetchLegendPoints();
       fetchLeaderboard();
+      checkForResume();
     }
   }, [user]);
 
@@ -82,8 +85,35 @@ export default function Dashboard() {
     }
   };
 
+  // Check if user has a resume uploaded
+  const checkForResume = async () => {
+    try {
+      if (!user?.id) return;
+      
+      const { data, error } = await supabase.storage
+        .from('resumes')
+        .list(user.id);
+        
+      if (error) {
+        console.error('Error checking for resume:', error);
+        return;
+      }
+      
+      // Find valid resume files
+      const validFiles = data?.filter(file => {
+        const ext = file.name.split('.').pop()?.toLowerCase();
+        return ext === 'pdf' || ext === 'docx';
+      });
+      
+      setHasResume(validFiles && validFiles.length > 0);
+    } catch (error) {
+      console.error('Error checking for resume:', error);
+    }
+  };
+
   const handleResumeUpload = (fileInfo: ResumeFile) => {
     setUploadedResume(fileInfo);
+    setHasResume(true);
   };
 
   if (isLoading || !user) {
@@ -106,7 +136,6 @@ export default function Dashboard() {
           <TabsList className="mb-6">
             <TabsTrigger value="upload">Upload Resume</TabsTrigger>
             <TabsTrigger value="manage">Manage Resume</TabsTrigger>
-            <TabsTrigger value="improve">Improve Resume</TabsTrigger>
             <TabsTrigger value="tracker">Job Tracker</TabsTrigger>
             <TabsTrigger value="cover-letter">Cover Letter</TabsTrigger>
             <TabsTrigger value="leaderboard">Leaderboard</TabsTrigger>
@@ -122,27 +151,28 @@ export default function Dashboard() {
             <ResumeViewer />
           </TabsContent>
           
-          <TabsContent value="improve">
-            {uploadedResume ? (
-              <ResumeTweaker 
-                resumeContent={uploadedResume.content}
-                fileName={uploadedResume.name}
-              />
-            ) : (
-              <div className="text-center p-12">
-                <p className="text-muted-foreground">
-                  Please upload a resume first to use the improvement feature
-                </p>
-              </div>
-            )}
-          </TabsContent>
-          
           <TabsContent value="tracker">
+            {/* Use the actual JobTracker component */}
             <JobTracker />
           </TabsContent>
           
           <TabsContent value="cover-letter">
-            <CoverLetterGenerator />
+            {!hasResume ? (
+              <div className="bg-white rounded-lg shadow p-6 text-center">
+                <h3 className="text-lg font-medium mb-2">Resume Required</h3>
+                <p className="text-gray-500 mb-4">
+                  Please upload your resume first to generate a cover letter.
+                </p>
+                <button 
+                  className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90"
+                  onClick={() => document.querySelector('[data-value="upload"]')?.click()}
+                >
+                  Upload Resume
+                </button>
+              </div>
+            ) : (
+              <CoverLetterGenerator />
+            )}
           </TabsContent>
           
           <TabsContent value="leaderboard">

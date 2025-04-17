@@ -1,20 +1,24 @@
+
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress"; 
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Upload } from "lucide-react";
-import supabase from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
-import { formatDistanceToNow } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
 import { uploadResume } from "@/utils/storage";
+import FileInput from "./resume/FileInput";
+import UploadProgress from "./resume/UploadProgress";
+import CurrentResumeInfo from "./resume/CurrentResumeInfo";
 
 // Maximum file size (5MB)
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
-export default function ResumeUploader({ onUploadSuccess }: { onUploadSuccess?: (fileInfo: { name: string; url: string; content: string }) => void }) {
+interface ResumeUploaderProps {
+  onUploadSuccess?: (fileInfo: { name: string; url: string; content: string }) => void;
+}
+
+export default function ResumeUploader({ onUploadSuccess }: ResumeUploaderProps) {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -104,7 +108,7 @@ export default function ResumeUploader({ onUploadSuccess }: { onUploadSuccess?: 
     setFile(selectedFile);
   };
 
-  // Fix: Trigger file input click when Upload Resume button is clicked
+  // Trigger file input click when Upload Resume button is clicked
   const triggerFileInput = () => {
     if (fileInputRef.current) {
       fileInputRef.current.click();
@@ -195,51 +199,21 @@ export default function ResumeUploader({ onUploadSuccess }: { onUploadSuccess?: 
           </div>
 
           {existingResume && (
-            <div className="bg-muted p-4 rounded-md">
-              <h4 className="font-medium mb-2">Current Resume</h4>
-              <p className="text-sm text-muted-foreground mb-1">{existingResume.name}</p>
-              <p className="text-xs text-muted-foreground mb-3">
-                Uploaded {formatDistanceToNow(new Date(existingResume.uploaded_at))} ago
-              </p>
-            </div>
+            <CurrentResumeInfo 
+              name={existingResume.name} 
+              uploadedAt={existingResume.uploaded_at} 
+            />
           )}
 
           <div className="space-y-4">
-            <div className="grid w-full items-center gap-1.5">
-              <Label htmlFor="resume">{existingResume ? "Replace Resume" : "Upload Resume"}</Label>
-              <Input
-                id="resume"
-                type="file"
-                ref={fileInputRef}
-                accept=".pdf,.docx"
-                onChange={handleFileChange}
-                className="cursor-pointer"
-                // Hide the file input visually but keep it accessible
-                style={{ display: 'none' }}
-              />
-              <Button 
-                onClick={triggerFileInput} 
-                variant="outline"
-                className="w-full"
-              >
-                <Upload className="mr-2 h-4 w-4" />
-                Select File
-              </Button>
-              {file && (
-                <p className="text-sm mt-2">
-                  Selected file: <span className="font-medium">{file.name}</span>
-                </p>
-              )}
-            </div>
+            <FileInput
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              onTriggerClick={triggerFileInput}
+              fileName={file?.name || null}
+            />
             
-            {uploading && (
-              <div className="space-y-2">
-                <Progress value={progress} className="h-2" />
-                <p className="text-xs text-center text-muted-foreground">
-                  {progress}% uploaded
-                </p>
-              </div>
-            )}
+            {uploading && <UploadProgress progress={progress} />}
             
             <Button
               onClick={handleUpload}
