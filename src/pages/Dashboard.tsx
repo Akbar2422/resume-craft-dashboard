@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Calendar, Clock } from "lucide-react";
+import { Calendar, Clock, User, Award, LogOut } from "lucide-react";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -26,6 +27,85 @@ interface ResumeFile {
   url: string;
   content: string;
 }
+
+interface ReminderData {
+  id: string;
+  title: string;
+  reminderTime: Date;
+  status: string;
+  note?: string;
+}
+
+interface SupabaseReminderData {
+  id: string;
+  title: string;
+  reminder_time: string;
+  status: string;
+  note?: string | null;
+  user_id: string;
+  application_id?: string | null;
+  created_at: string;
+}
+
+// Mock components to fix build errors
+const ResumeUploader = ({ onUploadSuccess }: { onUploadSuccess: (file: ResumeFile) => void }) => {
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-gray-300 rounded-lg">
+          <p className="text-muted-foreground">Resume uploader component placeholder</p>
+          <Button 
+            className="mt-4" 
+            onClick={() => onUploadSuccess({name: "resume.pdf", url: "#", content: "Sample resume content"})}
+          >
+            Upload Resume
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+const ResumeViewer = () => {
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <p className="text-muted-foreground">Resume viewer component placeholder</p>
+      </CardContent>
+    </Card>
+  );
+};
+
+const ResumeTweaker = ({ resumeContent, fileName }: { resumeContent: string, fileName: string }) => {
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <p className="text-muted-foreground">Resume tweaker component placeholder</p>
+        <p>Filename: {fileName}</p>
+      </CardContent>
+    </Card>
+  );
+};
+
+const JobTracker = () => {
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <p className="text-muted-foreground">Job tracker component placeholder</p>
+      </CardContent>
+    </Card>
+  );
+};
+
+const CoverLetterGenerator = () => {
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <p className="text-muted-foreground">Cover letter generator component placeholder</p>
+      </CardContent>
+    </Card>
+  );
+};
 
 export default function Dashboard() {
   const { user, isLoading, signOut } = useAuth();
@@ -47,13 +127,7 @@ export default function Dashboard() {
       receivedAt: "2025-04-15 09:32 AM"
     }
   ]);
-  const [reminders, setReminders] = useState<Array<{
-    id: string;
-    title: string;
-    reminderTime: Date;
-    status: string;
-    note?: string;
-  }>>([]);
+  const [reminders, setReminders] = useState<ReminderData[]>([]);
   const [newReminder, setNewReminder] = useState({
     title: '',
     reminderTime: null as Date | null,
@@ -70,6 +144,7 @@ export default function Dashboard() {
     if (user) {
       fetchLegendPoints();
       fetchLeaderboard();
+      fetchReminders();
     }
   }, [user]);
 
@@ -112,36 +187,56 @@ export default function Dashboard() {
   };
 
   const fetchReminders = async () => {
+    if (!user) return;
+    
     const { data, error } = await supabase
       .from('reminders')
       .select('*')
       .order('reminder_time', { ascending: true });
 
+    if (error) {
+      console.error('Error fetching reminders:', error);
+      return;
+    }
+
     if (data) {
-      setReminders(data);
+      // Convert Supabase data format to our local state format
+      const formattedReminders: ReminderData[] = data.map((reminder: SupabaseReminderData) => ({
+        id: reminder.id,
+        title: reminder.title,
+        reminderTime: new Date(reminder.reminder_time),
+        status: reminder.status,
+        note: reminder.note || undefined
+      }));
+      
+      setReminders(formattedReminders);
     }
   };
 
   const saveReminder = async () => {
-    if (!newReminder.title || !newReminder.reminderTime) return;
+    if (!user || !newReminder.title || !newReminder.reminderTime) return;
 
     const { data, error } = await supabase
       .from('reminders')
       .insert({
         title: newReminder.title,
         reminder_time: newReminder.reminderTime.toISOString(),
-        note: newReminder.note,
-        status: 'Pending'
+        note: newReminder.note || null,
+        status: 'Pending',
+        user_id: user.id // Add user_id to fix insertion error
       });
 
-    if (!error) {
-      fetchReminders();
-      setNewReminder({
-        title: '',
-        reminderTime: null,
-        note: ''
-      });
+    if (error) {
+      console.error('Error saving reminder:', error);
+      return;
     }
+
+    fetchReminders();
+    setNewReminder({
+      title: '',
+      reminderTime: null,
+      note: ''
+    });
   };
 
   const markReminderCompleted = async (id: string) => {
@@ -150,14 +245,13 @@ export default function Dashboard() {
       .update({ status: 'Completed' })
       .eq('id', id);
 
-    if (!error) {
-      fetchReminders();
+    if (error) {
+      console.error('Error marking reminder as completed:', error);
+      return;
     }
-  };
-
-  useEffect(() => {
+    
     fetchReminders();
-  }, []);
+  };
 
   if (isLoading || !user) {
     return (
@@ -201,7 +295,7 @@ export default function Dashboard() {
               <Button 
                 variant="outline" 
                 size="sm" 
-                onClick={signOut}
+                onClick={handleSignOut}
                 className="flex items-center"
               >
                 <LogOut className="h-4 w-4 mr-2" />
@@ -389,7 +483,7 @@ export default function Dashboard() {
                             <TableCell>
                               <div className="flex items-center">
                                 <Calendar className="mr-2 h-4 w-4" />
-                                {new Date(reminder.reminderTime).toLocaleString()}
+                                {reminder.reminderTime.toLocaleString()}
                               </div>
                             </TableCell>
                             <TableCell>{reminder.status}</TableCell>
