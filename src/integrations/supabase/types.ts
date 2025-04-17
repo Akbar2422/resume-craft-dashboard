@@ -54,6 +54,60 @@ export type Database = {
         }
         Relationships: []
       }
+      cover_letters: {
+        Row: {
+          company_name: string
+          content: string
+          created_at: string
+          id: string
+          job_description: string
+          job_title: string
+          resume_id: string
+          user_id: string
+        }
+        Insert: {
+          company_name: string
+          content: string
+          created_at?: string
+          id?: string
+          job_description: string
+          job_title: string
+          resume_id: string
+          user_id: string
+        }
+        Update: {
+          company_name?: string
+          content?: string
+          created_at?: string
+          id?: string
+          job_description?: string
+          job_title?: string
+          resume_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      legend_points: {
+        Row: {
+          id: string
+          last_updated: string
+          total_points: number
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          last_updated?: string
+          total_points?: number
+          user_id: string
+        }
+        Update: {
+          id?: string
+          last_updated?: string
+          total_points?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       resume_versions: {
         Row: {
           created_at: string
