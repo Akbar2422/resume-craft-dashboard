@@ -1,4 +1,4 @@
-
+import React from 'react';
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,11 +12,7 @@ import Header from "@/components/dashboard/Header";
 import Leaderboard from "@/components/dashboard/Leaderboard";
 import HRResponses from "@/components/dashboard/HRResponses";
 import JobReminders from "@/components/dashboard/JobReminders";
-
-// The JobTracker component exists but was being shown as a placeholder
 import JobTracker from "@/components/JobTracker"; 
-
-// The CoverLetterGenerator component exists but was being shown as a placeholder
 import CoverLetterGenerator from "@/components/CoverLetterGenerator";
 
 interface ResumeFile {
@@ -85,7 +81,6 @@ export default function Dashboard() {
     }
   };
 
-  // Check if user has a resume uploaded
   const checkForResume = async () => {
     try {
       if (!user?.id) return;
@@ -99,7 +94,6 @@ export default function Dashboard() {
         return;
       }
       
-      // Find valid resume files
       const validFiles = data?.filter(file => {
         const ext = file.name.split('.').pop()?.toLowerCase();
         return ext === 'pdf' || ext === 'docx';
@@ -114,6 +108,13 @@ export default function Dashboard() {
   const handleResumeUpload = (fileInfo: ResumeFile) => {
     setUploadedResume(fileInfo);
     setHasResume(true);
+  };
+
+  const handleUploadTabTrigger = () => {
+    const uploadTab = document.querySelector('[data-value="upload"]') as HTMLElement;
+    if (uploadTab) {
+      uploadTab.click();
+    }
   };
 
   if (isLoading || !user) {
@@ -152,7 +153,6 @@ export default function Dashboard() {
           </TabsContent>
           
           <TabsContent value="tracker">
-            {/* Use the actual JobTracker component */}
             <JobTracker />
           </TabsContent>
           
@@ -165,7 +165,7 @@ export default function Dashboard() {
                 </p>
                 <button 
                   className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90"
-                  onClick={() => document.querySelector('[data-value="upload"]')?.click()}
+                  onClick={handleUploadTabTrigger}
                 >
                   Upload Resume
                 </button>
