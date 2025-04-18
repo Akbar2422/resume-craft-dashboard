@@ -44,7 +44,13 @@ export default function ResumeViewer() {
       
       if (error) throw error;
       
-      setResumeVersions(data || []);
+      // Transform the data to ensure is_default exists on all items
+      const transformedData = data?.map(version => ({
+        ...version,
+        is_default: version.is_default === true, // Convert to boolean, handles null/undefined
+      })) || [];
+      
+      setResumeVersions(transformedData);
     } catch (error) {
       console.error('Error fetching resume versions:', error);
       toast({
