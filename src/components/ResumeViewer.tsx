@@ -2,21 +2,23 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { FileText, Loader2 } from "lucide-react";
+import { FileText, Loader2, Download, Star, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import ResumeInfo from "./resume/ResumeInfo";
 import ResumeControls from "./resume/ResumeControls";
 
-interface ResumeFile {
-  name: string;
-  url: string;
-  uploaded_at: string;
-  size?: number;
+interface ResumeVersion {
+  id: string;
+  original_filename: string;
+  tweaked_text: string;
+  created_at: string;
+  is_default: boolean;
+  job_description?: string | null;
 }
 
 export default function ResumeViewer() {
-  const [resume, setResume] = useState<ResumeFile | null>(null);
+  const [resumeVersions, setResumeVersions] = useState<ResumeVersion[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   
@@ -25,53 +27,29 @@ export default function ResumeViewer() {
 
   useEffect(() => {
     if (user) {
-      fetchResume();
+      fetchResumeVersions();
     }
   }, [user]);
 
-  const fetchResume = async () => {
+  const fetchResumeVersions = async () => {
     try {
       setLoading(true);
       if (!user?.id) return;
       
-      const { data, error } = await supabase.storage
-        .from('resumes')
-        .list(user.id);
-        
-      if (error) {
-        throw error;
-      }
+      const { data, error } = await supabase
+        .from('resume_versions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
       
-      // Find PDF or DOCX files
-      const validFiles = data?.filter(file => {
-        const ext = file.name.toLowerCase().split('.').pop();
-        return ext === 'pdf' || ext === 'docx';
-      });
+      if (error) throw error;
       
-      if (validFiles && validFiles.length > 0) {
-        // Sort by created_at in descending order
-        const latestFile = validFiles.sort((a, b) => 
-          new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime()
-        )[0];
-        
-        const { data: urlData } = await supabase.storage
-          .from('resumes')
-          .getPublicUrl(`${user.id}/${latestFile.name}`);
-          
-        setResume({
-          name: latestFile.name,
-          url: urlData.publicUrl,
-          uploaded_at: latestFile.created_at || new Date().toISOString(),
-          size: latestFile.metadata?.size,
-        });
-      } else {
-        setResume(null);
-      }
+      setResumeVersions(data || []);
     } catch (error) {
-      console.error('Error fetching resume:', error);
+      console.error('Error fetching resume versions:', error);
       toast({
-        title: "Error loading resume",
-        description: "Could not load your resume",
+        title: "Error loading resume versions",
+        description: "Could not load your resume versions",
         variant: "destructive",
       });
     } finally {
@@ -79,56 +57,75 @@ export default function ResumeViewer() {
     }
   };
 
-  const downloadResume = () => {
-    if (resume?.url) {
-      // Create an anchor element and trigger download
-      const a = document.createElement('a');
-      a.href = resume.url;
-      a.download = resume.name;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+  const handleSetDefault = async (versionId: string) => {
+    try {
+      // Reset all other defaults
+      await supabase
+        .from('resume_versions')
+        .update({ is_default: false })
+        .eq('user_id', user?.id || '');
+
+      // Set new default
+      await supabase
+        .from('resume_versions')
+        .update({ is_default: true })
+        .eq('id', versionId);
+
+      // Refresh versions
+      await fetchResumeVersions();
+
+      toast({
+        title: "Default Resume Updated",
+        description: "This resume version is now set as default",
+      });
+    } catch (error) {
+      console.error('Error setting default resume:', error);
+      toast({
+        title: "Error",
+        description: "Could not set default resume",
+        variant: "destructive",
+      });
     }
   };
 
-  const deleteResume = async () => {
+  const handleDownloadVersion = (version: ResumeVersion) => {
+    const blob = new Blob([version.tweaked_text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${version.original_filename}-v${version.created_at}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDeleteVersion = async (versionId: string) => {
     try {
-      if (!user?.id || !resume) return;
-      
       setDeleting(true);
-      const filePath = `${user.id}/${resume.name}`;
+      const { error } = await supabase
+        .from('resume_versions')
+        .delete()
+        .eq('id', versionId);
       
-      const { error } = await supabase.storage
-        .from('resumes')
-        .remove([filePath]);
-        
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
       
-      setResume(null);
+      await fetchResumeVersions();
+      
       toast({
-        title: "Resume deleted",
-        description: "Your resume has been successfully deleted",
+        title: "Resume Version Deleted",
+        description: "The resume version has been successfully removed",
       });
     } catch (error) {
-      console.error('Error deleting resume:', error);
+      console.error('Error deleting resume version:', error);
       toast({
         title: "Delete failed",
-        description: "Could not delete your resume",
+        description: "Could not delete resume version",
         variant: "destructive",
       });
     } finally {
       setDeleting(false);
     }
-  };
-
-  // Format file size
-  const formatFileSize = (bytes?: number) => {
-    if (!bytes) return 'Unknown size';
-    if (bytes < 1024) return bytes + ' bytes';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
   if (loading) {
@@ -141,14 +138,14 @@ export default function ResumeViewer() {
     );
   }
 
-  if (!resume) {
+  if (!resumeVersions.length) {
     return (
       <Card>
         <CardContent className="p-6 flex flex-col items-center justify-center min-h-[200px] text-center">
           <FileText className="h-12 w-12 text-muted-foreground mb-3" />
-          <h3 className="text-lg font-medium">No Resume Found</h3>
+          <h3 className="text-lg font-medium">No Resume Versions Found</h3>
           <p className="text-sm text-muted-foreground mt-1">
-            Upload a resume to view it here.
+            Upload a resume to start tracking versions
           </p>
         </CardContent>
       </Card>
@@ -159,22 +156,53 @@ export default function ResumeViewer() {
     <Card>
       <CardContent className="p-6">
         <div className="space-y-6">
-          <div className="space-y-2">
-            <h3 className="text-xl font-semibold">Your Resume</h3>
-            <p className="text-sm text-muted-foreground">
-              View and manage your uploaded resume
-            </p>
-          </div>
-
-          <div className="bg-muted p-4 rounded-md">
-            <ResumeInfo resume={resume} formatFileSize={formatFileSize} />
-            
-            <ResumeControls 
-              onDownload={downloadResume}
-              onDelete={deleteResume}
-              deleting={deleting}
-            />
-          </div>
+          <h3 className="text-xl font-semibold">Resume Versions</h3>
+          {resumeVersions.map((version) => (
+            <div 
+              key={version.id} 
+              className={`bg-muted p-4 rounded-md relative ${version.is_default ? 'border-2 border-primary' : ''}`}
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <h4 className="font-medium">{version.original_filename}</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Created {new Date(version.created_at).toLocaleString()}
+                  </p>
+                  {version.job_description && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Job Description: {version.job_description}
+                    </p>
+                  )}
+                </div>
+                <div className="flex space-x-2">
+                  {!version.is_default && (
+                    <button 
+                      onClick={() => handleSetDefault(version.id)}
+                      className="text-yellow-500 hover:text-yellow-600"
+                      title="Set as Default"
+                    >
+                      <Star className="h-5 w-5" />
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => handleDownloadVersion(version)}
+                    className="text-primary hover:text-primary-600"
+                    title="Download"
+                  >
+                    <Download className="h-5 w-5" />
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteVersion(version.id)}
+                    disabled={deleting}
+                    className="text-destructive hover:text-destructive-600"
+                    title="Delete"
+                  >
+                    <Trash2 className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </CardContent>
     </Card>
