@@ -1,9 +1,9 @@
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { FileText, Loader2, Download, Star, Trash2 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import supabase from "@/lib/supabase";  // Changed to default import
 import { useAuth } from "@/contexts/AuthContext";
 
 // Define a local interface that extends the Supabase type with our new field
