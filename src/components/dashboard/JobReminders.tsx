@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -6,10 +5,17 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
-import { Calendar } from "lucide-react";
+import { Calendar, Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 interface ReminderData {
   id: string;
@@ -37,6 +43,8 @@ export default function JobReminders() {
     reminderTime: null as Date | null,
     note: ''
   });
+  const [editingReminder, setEditingReminder] = useState<ReminderData | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   
   const { user } = useAuth();
   const { toast } = useToast();
@@ -67,7 +75,6 @@ export default function JobReminders() {
     }
 
     if (data) {
-      // Convert Supabase data format to our local state format
       const formattedReminders: ReminderData[] = data.map((reminder: SupabaseReminderData) => ({
         id: reminder.id,
         title: reminder.title,
@@ -115,7 +122,6 @@ export default function JobReminders() {
       description: "Reminder saved successfully"
     });
 
-    // Reset the form and refetch reminders
     fetchReminders();
     setNewReminder({
       title: '',
@@ -146,6 +152,71 @@ export default function JobReminders() {
     });
     
     fetchReminders();
+  };
+
+  const handleDeleteReminder = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('reminders')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Reminder deleted successfully"
+      });
+
+      fetchReminders();
+    } catch (error) {
+      console.error('Error deleting reminder:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete reminder",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleEditReminder = async () => {
+    if (!editingReminder?.id || !editingReminder.reminderTime) {
+      toast({
+        title: "Error",
+        description: "Missing required fields",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('reminders')
+        .update({
+          title: editingReminder.title,
+          reminder_time: editingReminder.reminderTime.toISOString(),
+          note: editingReminder.note || null
+        })
+        .eq('id', editingReminder.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Reminder updated successfully"
+      });
+
+      setIsEditDialogOpen(false);
+      setEditingReminder(null);
+      fetchReminders();
+    } catch (error) {
+      console.error('Error updating reminder:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update reminder",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -220,15 +291,34 @@ export default function JobReminders() {
                       </TableCell>
                       <TableCell>{reminder.status}</TableCell>
                       <TableCell>
-                        {reminder.status === 'Pending' && (
-                          <Button 
-                            variant="outline" 
+                        <div className="flex space-x-2">
+                          {reminder.status === 'Pending' && (
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => markReminderCompleted(reminder.id)}
+                            >
+                              Mark Completed
+                            </Button>
+                          )}
+                          <Button
+                            variant="outline"
                             size="sm"
-                            onClick={() => markReminderCompleted(reminder.id)}
+                            onClick={() => {
+                              setEditingReminder(reminder);
+                              setIsEditDialogOpen(true);
+                            }}
                           >
-                            Mark Completed
+                            <Pencil className="h-4 w-4" />
                           </Button>
-                        )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteReminder(reminder.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -237,6 +327,46 @@ export default function JobReminders() {
             </Table>
           </CardContent>
         </Card>
+
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Reminder</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Title</label>
+                <Input
+                  value={editingReminder?.title || ''}
+                  onChange={(e) => setEditingReminder(prev => 
+                    prev ? { ...prev, title: e.target.value } : null
+                  )}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Reminder Time</label>
+                <DatePicker
+                  date={editingReminder?.reminderTime || null}
+                  setDate={(date) => setEditingReminder(prev =>
+                    prev ? { ...prev, reminderTime: date } : null
+                  )}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Notes</label>
+                <Textarea
+                  value={editingReminder?.note || ''}
+                  onChange={(e) => setEditingReminder(prev =>
+                    prev ? { ...prev, note: e.target.value } : null
+                  )}
+                />
+              </div>
+              <Button className="w-full" onClick={handleEditReminder}>
+                Save Changes
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );
